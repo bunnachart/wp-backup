@@ -1,0 +1,102 @@
+# WordPress Theme / Plugin — กฎมาตรฐานสำหรับ AI
+
+> Template กลางสำหรับเริ่มโปรเจกต์ใหม่ คัดลอกไฟล์นี้ไปไว้ที่ root ของโปรเจกต์ แล้วกรอกส่วน "ข้อมูลโปรเจกต์" ด้านล่าง
+
+## 0. ข้อมูลโปรเจกต์ (กรอกก่อนเริ่ม — ถ้ายังว่าง AI ต้องถามผู้ใช้ก่อนเขียนโค้ด)
+- ประเภท: theme / plugin / child theme
+- Slug: `my-project` | Text domain: `my-project` (ต้องตรงกับ slug)
+- Prefix (function/option/hook/meta/CSS): `myp_` | Class prefix หรือ Namespace: `MYP_` หรือ `MyVendor\MyProject`
+- ขั้นต่ำ: PHP 7.4+ / WordPress 6.0+ (ระบุใน header `Requires PHP`, `Requires at least`)
+- Plugin ที่ต้องรองรับ (เช่น Polylang, WooCommerce, ACF): ...
+
+## 1. วิธีทำงานของ AI
+- ก่อนเริ่มโปรเจกต์ใหม่: ยืนยัน slug, prefix, text domain, เวอร์ชันขั้นต่ำ และโครงสร้างโฟลเดอร์กับผู้ใช้ก่อน แล้วยึดตามนั้นตลอด
+- อ่านโค้ดที่มีอยู่ก่อนแก้ ห้ามเดาชื่อ function/hook/class — ใช้เฉพาะ WordPress API ที่มีจริงในเวอร์ชันขั้นต่ำ ถ้าไม่แน่ใจให้บอกผู้ใช้
+- แก้เท่าที่จำเป็น ห้ามเขียนทับทั้งไฟล์หรือลบโค้ดที่ไม่เกี่ยวข้อง ห้าม refactor ใหญ่โดยไม่ถาม
+- ห้ามเพิ่ม library/dependency ภายนอกโดยไม่ถาม ใช้ของที่ WordPress มีให้ก่อน (jQuery, wp.i18n, wp.apiFetch, Dashicons)
+- ถ้า requirement กำกวม ให้ถาม อย่าเดา
+- สรุปทุกครั้ง: แก้ไฟล์อะไร ทำไม ตรวจอะไรแล้ว อะไรยังไม่ได้ทดสอบ (ห้ามอ้างว่าทดสอบแล้วถ้าไม่ได้รันจริง)
+
+## 2. มาตรฐาน PHP
+- ทำตาม WordPress Coding Standards (WPCS) สำหรับโค้ด WordPress
+  - indent ด้วย tab หรือ 4 space ตามที่โปรเจกต์ตกลง (ห้ามปนกัน), เว้นวรรคใน `func( $a, $b )` และ `if ( $x )`
+  - ชื่อ function/ตัวแปร `snake_case`, ชื่อ class `Capitalized_Words` (หรือ PascalCase ถ้าใช้ namespace + autoload), ค่าคงที่ `UPPER_CASE`
+  - ชื่อไฟล์ class: `class-{name}.php` (ถ้าไม่ใช้ PSR-4)
+- ใช้ `<?php` เต็มเสมอ ห้าม short tag `<?` ส่วน `<?=` ใช้ได้เฉพาะใน template และต้อง escape
+- ไฟล์ที่เป็น PHP ล้วน ห้ามปิด `?>` ท้ายไฟล์ (กัน whitespace หลุดออกไปทำ header พัง)
+- ไฟล์ encoding UTF-8 ไม่มี BOM
+- เปรียบเทียบด้วย `===` / `!==` เสมอ, `in_array( $x, $arr, true )`, Yoda condition (`'value' === $var`)
+- ห้ามใช้ `extract()`, `eval()`, `create_function()`, `@` ปิด error, `goto`, ตัวแปรแบบ `$$var`
+- ห้ามใช้ `unserialize()` กับข้อมูลจากผู้ใช้ (ใช้ JSON แทน)
+- เช็คค่าก่อนใช้เสมอ: `isset()`, `is_array()`, `is_wp_error()`, `empty()` — ห้ามสมมติว่า array key หรือ object มีอยู่
+- ห้ามปล่อย PHP Notice/Warning/Deprecated — โค้ดต้องรันได้โดยไม่มี notice เมื่อเปิด `WP_DEBUG`
+- ประกาศ function/class แบบ global ต้องมี prefix และห่อด้วย `function_exists()`/`class_exists()` เฉพาะ pluggable ที่ตั้งใจให้ override
+- ใช้ type hint / return type ได้ แต่ต้องไม่เกินเวอร์ชัน PHP ขั้นต่ำที่ประกาศไว้ (เช่น PHP 7.4 ห้ามใช้ union type, `match`, `enum`, readonly, named args)
+- DocBlock สำหรับ function/method สาธารณะ: `@param`, `@return`, `@since`
+
+## 3. ความปลอดภัย (บังคับทุกโปรเจกต์)
+- ทุกไฟล์ PHP เริ่มด้วย `defined( 'ABSPATH' ) || exit;` (ยกเว้น `uninstall.php` ใช้ `WP_UNINSTALL_PLUGIN`)
+- **Input — Sanitize เร็ว:** ข้อมูลจาก `$_GET/$_POST/$_REQUEST/$_COOKIE/$_SERVER` ต้อง `isset()` + `is_scalar()`/`is_array()` + `wp_unslash()` + sanitize
+  - `sanitize_text_field`, `sanitize_textarea_field`, `sanitize_email`, `sanitize_key`, `sanitize_title`, `absint`, `intval`, `esc_url_raw`, `wp_kses_post`
+  - ตัวเลขใช้ `is_numeric()` + จำกัดช่วง, ค่าที่มีตัวเลือกจำกัดใช้ allowlist (`in_array( $v, $allowed, true )`)
+- **Output — Escape ช้า:** escape ตอน echo เสมอ แม้ข้อมูลมาจาก DB
+  - `esc_html`, `esc_attr`, `esc_url`, `esc_textarea`, `esc_js`, `wp_kses_post`, `wp_json_encode`
+  - ข้อความแปล: `esc_html__()`, `esc_html_e()`, `esc_attr__()`
+- **Nonce:** ทุก form/AJAX/REST ที่เขียน แก้ หรือลบข้อมูล ต้องมี nonce (`wp_nonce_field`/`check_admin_referer`/`check_ajax_referer`)
+- **สิทธิ์:** ตรวจ `current_user_can()` ทุกครั้งก่อนเขียนข้อมูล (nonce ไม่ใช่การตรวจสิทธิ์)
+- **REST API:** ทุก route ต้องมี `permission_callback` (endpoint สาธารณะใช้ `'__return_true'` อย่างตั้งใจ) และ `args` พร้อม `sanitize_callback`/`validate_callback`
+- **SQL:** ใช้ `WP_Query`, `get_posts`, `meta_query`, `tax_query` ก่อน ถ้าต้องใช้ `$wpdb` ต้อง `$wpdb->prepare()` ทุกครั้ง และใช้ `$wpdb->esc_like()` กับ LIKE ห้ามต่อ string SQL จากตัวแปร
+- **ไฟล์:** upload ใช้ `wp_handle_upload()`/`media_handle_upload()` ตรวจชนิดไฟล์ด้วย `wp_check_filetype_and_ext()` ห้าม `include` path ที่มาจาก user
+- **HTTP ภายนอก:** ใช้ `wp_safe_remote_get/post()` ตรวจ `is_wp_error()` และ response code
+- **Redirect:** ใช้ `wp_safe_redirect()` แล้วตามด้วย `exit;`
+- **JavaScript:** ห้ามสร้าง HTML ด้วยการต่อ string จากข้อมูลผู้ใช้/API — ใช้ `textContent`, `.text()`, `.attr()` ส่งข้อมูลจาก PHP ด้วย `wp_localize_script`/`wp_add_inline_script` + `wp_json_encode`
+- ลิงก์ `target="_blank"` ต้องมี `rel="noopener noreferrer"`
+- ห้ามเก็บ API key/secret ไว้ในโค้ด ให้ใช้ option หรือ constant ใน `wp-config.php`
+- ห้ามเขียนไฟล์ log/debug ลงในโฟลเดอร์ theme/plugin และห้ามแสดง error รายละเอียดให้ผู้ใช้ทั่วไป (แสดงเฉพาะ `manage_options`)
+
+## 4. แนวปฏิบัติ WordPress
+- ใช้ hook ให้ถูกจังหวะ: CPT/taxonomy ที่ `init`, asset ที่ `wp_enqueue_scripts`/`admin_enqueue_scripts`, setting ที่ `admin_init`
+- โหลด CSS/JS ด้วย `wp_enqueue_style/script` เท่านั้น (ห้าม `<script>`/`<link>` ตรง) ใส่ version เพื่อ cache busting และโหลดเฉพาะหน้าที่ใช้
+- ข้อความทุกข้อความต้องแปลได้: `__()`, `_e()`, `_x()`, `_n()`, `esc_html__()` พร้อม text domain ที่ถูกต้อง, ใช้ `sprintf()` + placeholder ห้ามต่อ string ประโยค, ใส่ `/* translators: */` เมื่อมี placeholder
+- Settings ใช้ Settings API (`register_setting` + `sanitize_callback`)
+- Custom loop ต้อง `wp_reset_postdata()` หลังใช้ ห้ามใช้ `query_posts()`
+- ปรับ main query ด้วย `pre_get_posts` (เช็ค `is_main_query()` และ `! is_admin()`)
+- `flush_rewrite_rules()` เรียกเฉพาะตอน activate/deactivate หรือครั้งเดียวผ่าน flag ห้ามเรียกทุก request
+- Performance: ห้าม query ใน loop ซ้อน, ใช้ `no_found_rows` เมื่อไม่ต้องแบ่งหน้า, จำกัด `posts_per_page` (ห้าม `-1` กับข้อมูลที่โตได้), cache ด้วย transient/object cache และล้าง cache เมื่อข้อมูลเปลี่ยน
+- Option ที่ไม่ต้องใช้ทุกหน้า ตั้ง autoload เป็น false
+- รองรับ multisite/plugin อื่น: ห้ามแก้ core, ห้าม override global โดยไม่คืนค่า
+
+## 5. เฉพาะ Plugin
+- ไฟล์หลักมีแค่ header, constant (`MYP_VERSION`, `MYP_PATH`, `MYP_URL`), require และ bootstrap
+- โครงสร้างแนะนำ: `includes/` (logic), `admin/`, `public/` หรือ `templates/`, `assets/css|js|images/`, `languages/`
+- มี `register_activation_hook`/`register_deactivation_hook` และ `uninstall.php` (ลบ option/transient ของตัวเอง; ข้อมูลผู้ใช้ให้ถามก่อนว่าจะลบหรือไม่)
+- ตรวจ dependency (เช่น WooCommerce) ก่อนใช้ด้วย `class_exists()`/`function_exists()` และแสดง admin notice ถ้าไม่มี
+- Template ที่แสดงหน้าเว็บ ให้ theme override ได้ (`locate_template( 'my-project/xxx.php' )` ก่อน fallback)
+- ใส่ `index.php` (Silence is golden) ในทุกโฟลเดอร์
+
+## 6. เฉพาะ Theme
+- ไฟล์ขั้นต่ำ: `style.css` (header ครบ: Theme Name, Text Domain, Requires PHP, Version, License), `functions.php`, `index.php`
+- ใช้ template hierarchy และ `get_template_part()` ห้ามเขียน logic หนักใน template
+- เรียก `wp_head()`, `wp_body_open()`, `wp_footer()`, `body_class()`, `language_attributes()` ครบ
+- ประกาศ `add_theme_support` (title-tag, post-thumbnails, html5, custom-logo, responsive-embeds) ใน `after_setup_theme`
+- ห้ามใส่ `<title>` เอง (ใช้ title-tag)
+- **ห้ามใส่ฟีเจอร์ที่เป็นหน้าที่ของ plugin ในธีม** (CPT, shortcode, SEO, analytics) — แยกเป็น plugin เพื่อไม่ให้ข้อมูลหายเมื่อเปลี่ยนธีม
+- รองรับ child theme: ใช้ `get_template_directory*()` สำหรับไฟล์ของธีมแม่ และ `get_stylesheet_directory*()` สำหรับไฟล์ที่ให้ child override
+- Block theme: ใช้ `theme.json` สำหรับสี/ฟอนต์/spacing แทน CSS hardcode
+- Accessibility: มี skip link, alt ของรูป, focus style, label ของ form, heading เรียงลำดับ
+
+## 7. เครื่องมือตรวจสอบ (รันหลังแก้ทุกครั้ง)
+- Syntax PHP: `php -l <file>` (เครื่องนี้: `C:\xampp\php\php.exe -l <file>`)
+- Syntax JS: `node --check <file>`
+- ถ้ามี Composer: `vendor/bin/phpcs --standard=WordPress <path>` และ `vendor/bin/phpcbf` สำหรับแก้ format
+- ห้ามทิ้ง `var_dump`, `print_r`, `error_log`, `console.log`, `debugger` ที่ใช้ debug
+
+## 8. Checklist ก่อนบอกว่าเสร็จ
+1. Lint ผ่านทุกไฟล์ที่แก้
+2. Input sanitize / output escape / nonce / capability ครบ
+3. ข้อความแปลได้ด้วย text domain ที่ถูกต้อง
+4. ไม่มี PHP notice เมื่อเปิด `WP_DEBUG`
+5. แก้ asset แล้ว bump version
+6. ไม่มี debug code หรือไฟล์ log ค้าง
+7. อัปเดต README/changelog ถ้าพฤติกรรมเปลี่ยน
+8. สรุปงานพร้อมบอกสิ่งที่ยังไม่ได้ทดสอบ
